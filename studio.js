@@ -450,4 +450,32 @@ export class Studio {
     this.activeCam = prev; this.viewMode = prevMode; this.resize();
     return url;
   }
+
+  // full human-readable description of every light + camera, for saving a setup
+  exportSetup() {
+    const lights = this.lights.map(L => {
+      const p = this.lightPos(L);
+      const colText = L.hsl ? `HSL ${L.hsl[0]}/${L.hsl[1]}/${L.hsl[2]}` : `${L.kelvin}K`;
+      return {
+        name: L.name,
+        power: Math.round(L.pw),
+        cone: Math.round(L.cone),
+        feather: Math.round(L.feat),
+        height: Math.round(L.h),
+        angle: Math.round(((L.a % 360) + 360) % 360),
+        tilt: Math.round(L.tilt),
+        color: colText,
+        pos: { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2) },
+      };
+    });
+    const c = this.camPos();
+    return {
+      lights,
+      camera: {
+        pos: { x: +c.x.toFixed(1), y: +c.y.toFixed(1), z: +c.z.toFixed(1) },
+        iso: this.cam.iso, shutter: this.cam.shutter, aperture: +this.cam.aperture.toFixed(1), focal: this.cam.focal,
+      },
+      ambient: Math.round(this.ambient.intensity * 100),
+    };
+  }
 }

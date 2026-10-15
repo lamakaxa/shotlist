@@ -23,6 +23,7 @@ function fillStatic() {
   el("m_tag").textContent = STR.tagline;
   el("m_new").textContent = STR.newGame;
   el("m_free").textContent = STR.studioFree;
+  el("m_setups").textContent = "📁 Мои сетапы";
   el("m_how").textContent = STR.howto;
   el("t_shelf").textContent = STR.shelf;
   el("t_lights").textContent = STR.shelf;
@@ -67,9 +68,57 @@ function fillStatic() {
 
 /* ---------------- screens ---------------- */
 function show(id) {
-  ["menu", "board", "studio"].forEach(s => el(s).classList.toggle("hidden", s !== id));
+  ["menu", "board", "studio", "setups"].forEach(s => el(s).classList.toggle("hidden", s !== id));
   if (id === "studio") setTimeout(() => studio && studio.resize(), 30);
 }
+
+/* ---------------- my setups (localStorage) ---------------- */
+const SETUP_KEY = "shotlist_setups_v1";
+function loadSetups() {
+  try { return JSON.parse(localStorage.getItem(SETUP_KEY) || "[]"); } catch (e) { return []; }
+}
+function saveSetups(list) {
+  try { localStorage.setItem(SETUP_KEY, JSON.stringify(list)); } catch (e) { /* private mode / full */ }
+}
+function addSetup(entry) {
+  const list = loadSetups();
+  list.unshift(entry);
+  while (list.length > 30) list.pop();   // cap to keep storage sane
+  saveSetups(list);
+}
+function renderSetups() {
+  const list = loadSetups();
+  const box = el("setupsList");
+  if (!list.length) {
+    box.innerHTML = `<div class="setups-empty">Пока пусто.<br>Сделай кадр в студии и нажми <b>«Добавить в сетап»</b> — здесь сохранятся снимок и настройки света.</div>`;
+    return;
+  }
+  box.innerHTML = list.map((s, i) => {
+    const lrows = s.setup.lights.length
+      ? s.setup.lights.map(L => `<div class="lrow"><b>${L.name}</b> — ${L.power}%, угол ${L.cone}°, ${L.color}, h${L.height}см, азимут ${L.angle}°, растуш. ${L.feather}${L.tilt ? ", наклон " + L.tilt + "°" : ""}</div>`).join("")
+      : `<div class="lrow">Без источников</div>`;
+    const cam = s.setup.camera;
+    return `<div class="setup-card" data-i="${i}">
+      <img src="${s.img}" alt="">
+      <div class="body">
+        <h3>${s.name || "Сетап"} ${s.score != null ? `<span style="font-size:12px;color:var(--amber)">${Math.round(s.score * 100)}%</span>` : ""}</h3>
+        <div class="when">${s.when}${s.brief ? " · " + s.brief : ""}</div>
+        <div class="lights">${lrows}</div>
+        <div class="camline">Камера: ISO ${cam.iso} · 1/${cam.shutter} · f/${cam.aperture} · ${cam.focal}mm · окр.свет ${s.setup.ambient}%</div>
+        <div class="acts">
+          <button class="btn" data-save2="${i}">⤓ Сохранить фото</button>
+          <button class="btn danger" data-del="${i}">Удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+el("setupsList").addEventListener("click", e => {
+  const d = e.target.closest("[data-del]");
+  if (d) { const l = loadSetups(); l.splice(+d.dataset.del, 1); saveSetups(l); renderSetups(); return; }
+  const sv = e.target.closest("[data-save2]");
+  if (sv) { const s = loadSetups()[+sv.dataset.save2]; if (s) saveImage(s.img, "shotlist-setup.jpg"); }
+});
 
 /* ---------------- board ---------------- */
 function renderBoard() {
@@ -407,9 +456,12 @@ function showShotResult({ url, shot, free }) {
       <div class="shotbig"><img src="${url}"></div>
       <div class="acts">
         <button class="btn" data-close>${STR.close}</button>
+        <button class="btn" data-setup>➕ В сетап</button>
         <button class="btn primary" data-save>⤓ ${STR.save || "Сохранить"}</button>
       </div>`);
-    el("modalMount").querySelector("[data-save]").addEventListener("click", () => saveImage(url, "shotlist-frame.jpg"));
+    const mmf = el("modalMount");
+    mmf.querySelector("[data-save]").addEventListener("click", () => saveImage(url, "shotlist-frame.jpg"));
+    mmf.querySelector("[data-setup]").addEventListener("click", ev => saveToSetup(url, null, STR.studioFree, ev.target));
     return;
   }
   const pass = shot.score >= session.brief.threshold;
@@ -421,12 +473,14 @@ function showShotResult({ url, shot, free }) {
     <div class="fbk">${hintText(shot.hint)}</div>
     <div class="acts">
       <button class="btn" data-save>⤓ ${STR.save || "Сохранить"}</button>
+      <button class="btn" data-setup>➕ В сетап</button>
       ${left > 0 ? `<button class="btn ghost" data-more>📸 Ещё кадр (${left})</button>` : ""}
       <button class="btn ${pass ? 'primary' : ''}" data-submit ${pass ? '' : 'disabled'}>✓ ${STR.submit}</button>
     </div>
     ${!pass ? `<div class="tiny" style="margin-top:9px;color:var(--haze)">Порог сдачи ${Math.round(session.brief.threshold * 100)}% — дотяни свет и сними ещё.</div>` : ""}`);
   const mm = el("modalMount");
   mm.querySelector("[data-save]").addEventListener("click", () => saveImage(shot.url, "shotlist-shot.jpg"));
+  mm.querySelector("[data-setup]").addEventListener("click", ev => saveToSetup(shot.url, shot.score, session.brief.title, ev.target));
   const more = mm.querySelector("[data-more]");
   if (more) more.addEventListener("click", closeModal);
   const sub = mm.querySelector("[data-submit]");
@@ -441,6 +495,16 @@ function showShotResult({ url, shot, free }) {
       if (el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
     });
   }
+}
+
+// save current frame + full light/camera description into "My setups"
+function saveToSetup(img, score, briefName, btn) {
+  const now = new Date();
+  const when = now.toLocaleDateString("ru-RU") + " " + now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const setup = studio.exportSetup();
+  const name = briefName && !state.freeMode ? briefName.slice(0, 40) : "Свободный кадр";
+  addSetup({ img, score, when, brief: state.freeMode ? "" : briefName, name, setup });
+  if (btn) { const t = btn.textContent; btn.textContent = "✓ Сохранено"; btn.disabled = true; setTimeout(() => { btn.textContent = t; btn.disabled = false; }, 1600); }
 }
 
 function flashShutter() {
@@ -559,5 +623,7 @@ function loop() {
 fillStatic();
 el("m_new").addEventListener("click", () => { state.money = 0; state.rep = 0; state.cleared = 0; renderBoard(); show("board"); });
 el("m_free").addEventListener("click", enterFreeStudio);
+el("m_setups").addEventListener("click", () => { renderSetups(); show("setups"); });
+el("setups_back").addEventListener("click", () => show("menu"));
 el("m_how").addEventListener("click", showHowto);
 show("menu");

@@ -74,6 +74,21 @@ button{font-family:inherit;cursor:pointer}
 .brief-card .meta b{color:var(--paper)}
 .brief-card .go{position:absolute;top:18px;right:18px}
 .brief-card .badge{position:absolute;top:20px;right:20px;font-size:11px;color:#7fae5e;font-weight:700}
+/* setup cards */
+.setup-card{display:flex;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:14px;margin-bottom:13px;align-items:flex-start}
+.setup-card img{width:110px;flex:none;border-radius:9px;border:1px solid var(--line);aspect-ratio:4/5;object-fit:cover;background:#000}
+.setup-card .body{flex:1;min-width:0}
+.setup-card h3{font-size:16px;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.setup-card .when{font-size:11px;color:var(--haze);margin-bottom:9px}
+.setup-card .lights{font-size:11.5px;color:#cdbfa6;line-height:1.55}
+.setup-card .lights .lrow{padding:2px 0;border-bottom:1px dotted var(--line)}
+.setup-card .lights b{color:var(--paper)}
+.setup-card .camline{font-size:11px;color:var(--haze);margin-top:7px;font-variant-numeric:tabular-nums}
+.setup-card .acts{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.setup-card .acts .btn{padding:7px 12px;font-size:12px}
+.setups-empty{text-align:center;color:var(--haze);padding:50px 20px;line-height:1.7}
+@media(max-width:600px){.setup-card{flex-direction:column}.setup-card img{width:100%;max-width:200px}}
 
 /* ---------- studio ---------- */
 #studio{background:#0c0c0b}
@@ -266,6 +281,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
   <div class="acts">
     <button class="btn primary" id="m_new"></button>
     <button class="btn ghost" id="m_free"></button>
+    <button class="btn" id="m_setups"></button>
     <button class="btn" id="m_how"></button>
   </div>
 </div>
@@ -283,6 +299,18 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
       <h1 id="b_title"></h1>
     </div>
     <div id="b_list"></div>
+  </div>
+</div>
+
+<!-- ============ MY SETUPS ============ -->
+<div id="setups" class="screen hidden">
+  <div class="bar">
+    <button class="btn" id="setups_back" style="padding:8px 13px">‹ Меню</button>
+    <div class="brand" style="font-size:16px">Мои сетапы</div>
+    <div class="spacer"></div>
+  </div>
+  <div class="board-body scr">
+    <div id="setupsList"></div>
   </div>
 </div>
 
