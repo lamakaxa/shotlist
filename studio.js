@@ -39,7 +39,12 @@ export class Studio {
     this.camTop.position.set(0, 18, 0); this.camTop.lookAt(0, 1, 0); this.camTop.up.set(0, 0, -1);
     this.camShot = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     this.camFree = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-    this.camFree.position.set(4.5, 3.4, 5); this.camFree.lookAt(0, 1.3, 0);
+    // free camera as full spherical orbit around a target (360° on both axes)
+    this.camTarget = new THREE.Vector3(0, 1.3, 0);
+    this.camAz = Math.PI * 0.18;   // azimuth around Y
+    this.camPol = Math.PI * 0.42;  // polar angle from +Y (0=top, PI=bottom)
+    this.camRad = 7.2;
+    this._applyFreeCam();
     this.activeCam = this.camFree; this.viewMode = "free";
 
     // camera settings (affect exposure + DOF feel)
@@ -169,10 +174,26 @@ export class Studio {
     this.resize();
   }
   _frameShot() {
-    // position shot camera in front of mannequin
-    this.camShot.position.set(0, 1.55, 4.2);
-    this.camShot.lookAt(0, 1.35, 0);
+    // spherical rig for the shot camera too (front default), fully orbitable
+    if (this.shotAz === undefined) {
+      this.shotTarget = new THREE.Vector3(0, 1.35, 0);
+      this.shotAz = 0; this.shotPol = Math.PI * 0.5; this.shotRad = 4.2;
+    }
+    this._applyShotCam();
     this._applyExposure();
+  }
+  _applyShotCam() {
+    const TAU = Math.PI * 2;
+    this.shotAz = ((this.shotAz % TAU) + TAU) % TAU;
+    this.shotPol = ((this.shotPol % TAU) + TAU) % TAU;
+    const sp = Math.sin(this.shotPol), cp = Math.cos(this.shotPol);
+    const x = this.shotTarget.x + this.shotRad * sp * Math.sin(this.shotAz);
+    const y = this.shotTarget.y + this.shotRad * cp;
+    const z = this.shotTarget.z + this.shotRad * sp * Math.cos(this.shotAz);
+    this.camShot.position.set(x, y, z);
+    const up = (this.shotPol > 0 && this.shotPol < Math.PI) ? 1 : -1;
+    this.camShot.up.set(0, up, 0);
+    this.camShot.lookAt(this.shotTarget);
   }
 
   // ---- mannequin proxies ----
@@ -274,19 +295,67 @@ export class Studio {
     if (this.ray.ray.intersectPlane(plane, pt)) { this.man.dragJoint(name, pt); this._fire(); }
   }
 
+  _applyFreeCam() {
+    const TAU = Math.PI * 2;
+    // keep angles in range but never clamp — full 360° both axes
+    this.camAz = ((this.camAz % TAU) + TAU) % TAU;
+    this.camPol = ((this.camPol % TAU) + TAU) % TAU;
+    const sp = Math.sin(this.camPol), cp = Math.cos(this.camPol);
+    const sa = Math.sin(this.camAz), ca = Math.cos(this.camAz);
+    const x = this.camTarget.x + this.camRad * sp * sa;
+    const y = this.camTarget.y + this.camRad * cp;
+    const z = this.camTarget.z + this.camRad * sp * ca; // sp on both x and z keeps radius constant
+    this.camFree.position.set(x, y, z);
+    // flip up vector when camera passes over the pole so the view never locks
+    const up = (this.camPol > 0 && this.camPol < Math.PI) ? 1 : -1;
+    this.camFree.up.set(0, up, 0);
+    this.camFree.lookAt(this.camTarget);
+  }
   orbit(dx, dy) {
-    const radius = Math.hypot(this.camFree.position.x, this.camFree.position.z);
-    let theta = Math.atan2(this.camFree.position.x, this.camFree.position.z) + dx;
-    const y = Math.min(10, Math.max(1.0, this.camFree.position.y + dy * 4));
-    this.camFree.position.set(Math.sin(theta) * radius, y, Math.cos(theta) * radius);
-    this.camFree.lookAt(0, 1.3, 0);
+    if (this.viewMode === "cam") {
+      this.shotAz -= dx; this.shotPol -= dy; this._applyShotCam();
+    } else {
+      this.camAz -= dx; this.camPol -= dy; this._applyFreeCam();
+    }
   }
   zoom(d) {
-    if (this.viewMode === "free") this.camFree.position.multiplyScalar(Math.min(1.1, Math.max(0.9, 1 + d * 0.0009)));
+    if (this.viewMode === "cam") {
+      this.shotRad = Math.min(14, Math.max(1.2, this.shotRad * (1 + d * 0.0009))); this._applyShotCam();
+    } else if (this.viewMode === "free") {
+      this.camRad = Math.min(16, Math.max(1.6, this.camRad * (1 + d * 0.0009))); this._applyFreeCam();
+    }
+  }
+  // spherical orbit of the selected light around the model, 360° both axes
+  orbitLight(dx, dy) {
+    const L = this.cur(); if (!L) return;
+    // derive current spherical angles from a,h,r
+    const az = THREE.MathUtils.degToRad(L.a);
+    const y = L.h / 100 - 1.4;               // relative to model centre (~1.4m)
+    const horiz = L.r;
+    let pol = Math.atan2(horiz, y);          // polar from +Y
+    const rad = Math.hypot(horiz, y);
+    let naz = az - dx;
+    let npol = pol - dy;
+    const TAU = Math.PI * 2;
+    npol = Math.max(0.08, Math.min(Math.PI - 0.08, npol)); // avoid exact pole singularity
+    naz = ((naz % TAU) + TAU) % TAU;
+    const nHoriz = Math.sin(npol) * rad;
+    const nY = Math.cos(npol) * rad;
+    L.r = Math.max(0.9, Math.min(5.2, nHoriz));
+    L.h = Math.max(20, Math.min(320, (nY + 1.4) * 100));
+    L.a = THREE.MathUtils.radToDeg(naz);
+    this._place(L); this._fire();
   }
   wheelHeight(d) {
     const L = this.cur(); if (L && this.viewMode === "top") { L.h = Math.min(320, Math.max(20, L.h - d * 0.12)); this._place(L); this._fire(); }
     else this.zoom(d);
+  }
+  resetView() {
+    if (this.viewMode === "cam") {
+      this.shotAz = 0; this.shotPol = Math.PI * 0.5; this.shotRad = 4.2; this._applyShotCam();
+    } else {
+      this.camAz = Math.PI * 0.18; this.camPol = Math.PI * 0.42; this.camRad = 7.2; this._applyFreeCam();
+    }
   }
 
   setAmbient(v) { this.ambient.intensity = v / 100; this._fire(); }

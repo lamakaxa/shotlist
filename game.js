@@ -56,7 +56,8 @@ function fillStatic() {
     `<button class="add" data-add="${k}"><span class="ic">${ic}</span>${n}</button>`).join("");
   // view tabs
   el("vtabs").innerHTML = [["top", STR.viewTop], ["cam", STR.viewCam], ["free", STR.viewFree]]
-    .map(([v, n], i) => `<button data-view="${v}" class="${v === 'free' ? 'on' : ''}">${n}</button>`).join("");
+    .map(([v, n], i) => `<button data-view="${v}" class="${v === 'free' ? 'on' : ''}">${n}</button>`).join("")
+    + `<button data-reset title="Сбросить ракурс">⟲</button>`;
   // pose presets
   const poses = [["stand", STR.poseStand], ["contrapposto", STR.poseContrapposto],
     ["handsup", STR.poseHandsUp], ["sit", STR.poseSit], ["profile", STR.poseProfile]];
@@ -139,7 +140,7 @@ function enterStudio(briefIdx) {
   if(el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
   el("mHint").style.display = "";
   if (typeof closeSheet === "function") closeSheet();
-  el("vhint").innerHTML = STR.dragLimb + " · <b>тяни источник · колесо — высота в виде «Сверху»</b>";
+  el("vhint").innerHTML = "Тяни <b>источник</b> — он облетает модель 360° · тяни <b>фон</b> — вращай камеру 360° · колесо — зум · конечности манекена тянутся";
   show("studio");
   syncStudioUI();
 }
@@ -252,7 +253,12 @@ function bindStudioControls() {
   el("bodyTurn").addEventListener("input", e => studio.bodyTurn(+e.target.value));
   el("headTurn").addEventListener("input", e => studio.headTurn(+e.target.value));
   // views
-  el("vtabs").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (!b) return; setActiveViewTab(b.dataset.view); studio.setView(b.dataset.view); updateVTag(); });
+  el("vtabs").addEventListener("click", e => {
+    const r = e.target.closest("[data-reset]");
+    if (r) { studio.resetView(); return; }
+    const b = e.target.closest("[data-view]"); if (!b) return;
+    setActiveViewTab(b.dataset.view); studio.setView(b.dataset.view); updateVTag();
+  });
   // back
   el("s_back").addEventListener("click", () => { closeSheet(); el("hintBtn").classList.remove("hidden"); show("board"); renderBoard(); });
   // shoot + hint
@@ -301,18 +307,21 @@ function bindViewport() {
   const down = e => {
     const pe = e.touches ? e.touches[0] : e;
     const hit = studio.pickAt(pe);
+    lastX = pe.clientX; lastY = pe.clientY;
     if (hit.type === "limb") { mode = "limb"; limbName = hit.name; }
-    else if (hit.type === "light") { mode = "light"; }
-    else if (studio.viewMode === "free") { mode = "orbit"; lastX = pe.clientX; lastY = pe.clientY; }
+    else if (hit.type === "light") { mode = "light"; }      // orbit the light around the model
+    else if (studio.viewMode === "free" || studio.viewMode === "cam") { mode = "orbit"; }
     syncStudioUI();
     if (e.cancelable) e.preventDefault();
   };
   const move = e => {
     if (!mode) return;
     const pe = e.touches ? e.touches[0] : e;
-    if (mode === "light") studio.dragLightTo(pe);
+    const dx = (pe.clientX - lastX) * 0.01, dy = (pe.clientY - lastY) * 0.01;
+    if (mode === "light") studio.orbitLight(dx, dy);
     else if (mode === "limb") studio.dragLimbTo(pe, limbName);
-    else if (mode === "orbit") { studio.orbit((pe.clientX - lastX) * 0.01, (pe.clientY - lastY) * 0.01); lastX = pe.clientX; lastY = pe.clientY; }
+    else if (mode === "orbit") studio.orbit(dx, dy);
+    lastX = pe.clientX; lastY = pe.clientY;
     if (e.cancelable) e.preventDefault();
   };
   const up = () => { mode = null; limbName = null; };
