@@ -334,7 +334,17 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
         <div id="lightList"></div>
       </div>
       <div class="sect">
-        <div class="ctrl"><label><span id="t_amb"></span><b id="ambV">3%</b></label>
+        <div class="ctrl"><label>Фон</label>
+          <div class="seg" id="bgSeg">
+            <button data-bg="studio" class="on">Студия</button>
+            <button data-bg="street">Улица</button>
+            <button data-bg="photo">Моё фото</button>
+          </div>
+        </div>
+        <button class="btn" id="bgUpload" style="width:100%;display:none;padding:9px;font-size:12px">⤒ Загрузить локацию</button>
+        <input type="file" id="bgFile" accept="image/*" style="display:none">
+        <div id="bgEnv" class="tiny" style="margin-top:7px"></div>
+        <div class="ctrl" style="margin-top:12px"><label><span id="t_amb"></span><b id="ambV">3%</b></label>
           <input type="range" id="amb" min="0" max="40" value="3"></div>
         <div class="ctrl"><label><span id="t_bg"></span><b id="bgV"></b></label>
           <input type="range" id="bgTone" min="0" max="100" value="20"></div>

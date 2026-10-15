@@ -15,7 +15,13 @@ const state = {
   briefIndex: 0,
   shotsTaken: [],        // {url, score, hint}
   hintsUsed: 0,
+  photoBg: null,         // uploaded location photo (data URL)
 };
+
+function reportPhotoEnv() {
+  const env = studio && studio.lastPhotoEnv;
+  if (env) el("bgEnv").innerHTML = `Свет с фото: окружение <b>${env.ambient}%</b>, оттенок rgb(${env.tint.join(",")})`;
+}
 
 /* ---------------- static text wiring ---------------- */
 function fillStatic() {
@@ -307,6 +313,25 @@ function bindStudioControls() {
   sl("pow", "pw"); sl("kelvin", "kelvin"); sl("feat", "feat"); sl("cone", "cone"); sl("hgt", "h"); sl("tilt", "tilt");
   el("amb").addEventListener("input", e => { studio.setAmbient(+e.target.value); el("ambV").textContent = e.target.value + "%"; });
   el("bgTone").addEventListener("input", e => { studio.setBgTone(+e.target.value); el("bgV").textContent = +e.target.value < 15 ? "тёмный" : +e.target.value < 50 ? "серый" : "светлый"; });
+  // backdrop choice
+  el("bgSeg").addEventListener("click", e => {
+    const b = e.target.closest("[data-bg]"); if (!b) return;
+    el("bgSeg").querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on");
+    const kind = b.dataset.bg;
+    el("bgUpload").style.display = kind === "photo" ? "block" : "none";
+    el("bgEnv").textContent = "";
+    if (kind === "photo") {
+      if (state.photoBg) { studio.setBackdrop("photo", state.photoBg); reportPhotoEnv(); }
+      else el("bgFile").click();
+    } else studio.setBackdrop(kind);
+  });
+  el("bgUpload").addEventListener("click", () => el("bgFile").click());
+  el("bgFile").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { state.photoBg = rd.result; studio.setBackdrop("photo", rd.result); setTimeout(reportPhotoEnv, 400); };
+    rd.readAsDataURL(f);
+  });
   // camera
   el("iso").addEventListener("input", e => studio.setCam("iso", e.target.value));
   el("shutter").addEventListener("input", e => studio.setCam("shutter", e.target.value));

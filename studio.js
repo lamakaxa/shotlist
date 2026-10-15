@@ -61,6 +61,7 @@ export class Studio {
     this.bgMat = bgMat;
     const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(40, 26), bgMat);
     backdrop.position.set(0, 13, -6); backdrop.receiveShadow = true; this.scene.add(backdrop);
+    this.backdrop = backdrop; this.bgKind = "studio";
 
     // mannequin
     this.man = new Mannequin();
@@ -106,6 +107,7 @@ export class Studio {
       new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide }));
     giz.add(face); giz.add(ring);
     giz.userData.id = id;
+    giz.visible = this.viewMode !== "cam";   // hidden in the camera frame
     this.scene.add(giz);
 
     L.sl = sl; L.giz = giz; L.face = face;
@@ -235,6 +237,9 @@ export class Studio {
     this.viewMode = mode;
     this.activeCam = mode === "top" ? this.camTop : mode === "cam" ? this.camShot : this.camFree;
     if (mode === "cam") this._frameShot();
+    // hide light gizmos in the camera frame so they don't block the shot
+    const show = mode !== "cam";
+    this.lights.forEach(L => { if (L.giz) L.giz.visible = show; });
     this.resize();
   }
   _frameShot() {
@@ -424,6 +429,64 @@ export class Studio {
 
   setAmbient(v) { this.ambient.intensity = v / 100; this._fire(); }
   setBgTone(v) { const g = Math.round(v * 2.0 + 8); const c = new THREE.Color(g / 255, g / 255, g / 255); this.floorMat.color.copy(c); this.bgMat.color.copy(c); this._fire(); }
+
+  // ---- backdrop environments ----
+  setBackdrop(kind, imageUrl) {
+    this.bgKind = kind;
+    // drop any photo texture by default
+    if (kind !== "photo") {
+      if (this.bgMat.map) { this.bgMat.map.dispose(); this.bgMat.map = null; }
+      this.scene.background = new THREE.Color(0x0c0c0b);
+    }
+    if (kind === "studio") {
+      this.bgMat.color.set(0x5e5e5e); this.floorMat.color.set(0x5e5e5e);
+      this.bgMat.needsUpdate = true;
+    } else if (kind === "street") {
+      // cool outdoor feel: bluish sky backdrop, darker asphalt floor, scene sky tint
+      this.bgMat.color.set(0x8aa4c4); this.floorMat.color.set(0x3a3c40);
+      this.scene.background = new THREE.Color(0x10151c);
+      this.bgMat.needsUpdate = true;
+    } else if (kind === "photo" && imageUrl) {
+      const loader = new THREE.TextureLoader();
+      loader.load(imageUrl, tex => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        if (this.bgMat.map) this.bgMat.map.dispose();
+        this.bgMat.map = tex; this.bgMat.color.set(0xffffff); this.bgMat.needsUpdate = true;
+        this.scene.background = tex;
+        this._analysePhoto(imageUrl);
+      });
+    }
+    this._fire();
+  }
+
+  // analyse a photo's brightness/colour and set the scene's ambient environment from it
+  _analysePhoto(imageUrl) {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const w = 48, h = 48;
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      const ctx = cv.getContext("2d");
+      try { ctx.drawImage(img, 0, 0, w, h); } catch (e) { return; }
+      let data; try { data = ctx.getImageData(0, 0, w, h).data; } catch (e) { return; }
+      let r = 0, g = 0, b = 0, lum = 0, n = w * h;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i]; g += data[i + 1]; b += data[i + 2];
+        lum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      }
+      r /= n; g /= n; b /= n; lum /= n;              // 0..255 averages
+      // ambient intensity scaled from overall brightness (brighter photo → brighter scene)
+      const amb = Math.min(0.5, Math.max(0.04, (lum / 255) * 0.6));
+      this.ambient.intensity = amb;
+      // tint the ambient toward the photo's average colour, softened toward white
+      const mix = 0.55;
+      const cr = (r / 255) * mix + (1 - mix), cg = (g / 255) * mix + (1 - mix), cb = (b / 255) * mix + (1 - mix);
+      this.ambient.color.setRGB(cr, cg, cb);
+      this.lastPhotoEnv = { ambient: Math.round(amb * 100), tint: [Math.round(r), Math.round(g), Math.round(b)] };
+      this._fire();
+    };
+    img.src = imageUrl;
+  }
 
   resize() {
     const w = this.canvas.clientWidth || this.canvas.parentElement.clientWidth;
