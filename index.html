@@ -17,6 +17,7 @@ html,body{height:100%;background:var(--ink);color:var(--paper);overflow:hidden;
   font-family:"Inter","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;
   font-size:15px}
 button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:4px}
 .hidden{display:none!important}
 .screen{position:fixed;inset:0;display:flex;flex-direction:column}
 
@@ -223,11 +224,11 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
   #studioGrid{display:block;position:relative;flex:1;min-height:0}
   #stage{position:absolute;inset:0}
   .panel.l,.panel.r{
-    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    position:fixed;left:0;right:0;bottom:calc(60px + var(--sab));z-index:40;
     background:var(--panel);border-top:1px solid var(--line);
-    border-radius:16px 16px 0 0;max-height:62dvh;
-    padding-bottom:calc(10px + var(--sab));
-    transform:translateY(110%);transition:transform .34s var(--ease-drawer);
+    border-radius:16px 16px 0 0;max-height:60dvh;
+    padding-bottom:18px;
+    transform:translateY(140%);transition:transform .34s var(--ease-drawer);
     box-shadow:0 -12px 40px rgba(0,0,0,.5);overscroll-behavior:contain}
   .panel.l.open,.panel.r.open{transform:translateY(0)}
   /* grab handle */
@@ -407,6 +408,7 @@ input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-ra
           <div class="seg" id="poseSeg"></div></div>
         <div class="ctrl"><label><span id="t_bodyturn"></span><b id="btV">0°</b></label><input type="range" id="bodyTurn" min="-90" max="90" value="0"></div>
         <div class="ctrl"><label><span id="t_headturn"></span><b id="htV">0°</b></label><input type="range" id="headTurn" min="-70" max="70" value="0"></div>
+        <div class="ctrl"><label>Размер модели <b id="mscaleV">100%</b></label><input type="range" id="mscale" min="50" max="180" value="100"></div>
       </div>
     </aside>
   </div>

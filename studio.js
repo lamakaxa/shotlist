@@ -269,6 +269,8 @@ export class Studio {
   pose(name) { this.man.applyPose(name); this._fire(); }
   bodyTurn(d) { this.man.setBodyTurn(d); this._fire(); }
   headTurn(d) { this.man.setHeadTurn(d); this._fire(); }
+  setModelScale(v) { this.modelScale = v; this.man.root.scale.setScalar(v); this._fire(); }
+  get modelScaleV() { return this.modelScale || 1; }
 
   // ---- scoring against a brief target ----
   scoreAgainst(target, weights) {
@@ -431,28 +433,40 @@ export class Studio {
   setBgTone(v) { const g = Math.round(v * 2.0 + 8); const c = new THREE.Color(g / 255, g / 255, g / 255); this.floorMat.color.copy(c); this.bgMat.color.copy(c); this._fire(); }
 
   // ---- backdrop environments ----
+  _ensureDome() {
+    if (this.dome) return;
+    // inside-out sphere that surrounds the whole scene → a real environment, visible on orbit
+    const geo = new THREE.SphereGeometry(28, 48, 32);
+    const mat = new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: 0x1a1a1a });
+    this.domeMat = mat;
+    this.dome = new THREE.Mesh(geo, mat);
+    this.dome.visible = false;
+    this.scene.add(this.dome);
+  }
   setBackdrop(kind, imageUrl) {
     this.bgKind = kind;
-    // drop any photo texture by default
+    this._ensureDome();
     if (kind !== "photo") {
-      if (this.bgMat.map) { this.bgMat.map.dispose(); this.bgMat.map = null; }
+      this.dome.visible = false;
+      if (this.bgMat.map) { this.bgMat.map.dispose(); this.bgMat.map = null; this.bgMat.color.set(0xffffff); }
       this.scene.background = new THREE.Color(0x0c0c0b);
     }
     if (kind === "studio") {
-      this.bgMat.color.set(0x5e5e5e); this.floorMat.color.set(0x5e5e5e);
-      this.bgMat.needsUpdate = true;
+      this.bgMat.color.set(0x5e5e5e); this.floorMat.color.set(0x5e5e5e); this.bgMat.needsUpdate = true;
     } else if (kind === "street") {
-      // cool outdoor feel: bluish sky backdrop, darker asphalt floor, scene sky tint
       this.bgMat.color.set(0x8aa4c4); this.floorMat.color.set(0x3a3c40);
-      this.scene.background = new THREE.Color(0x10151c);
-      this.bgMat.needsUpdate = true;
+      this.scene.background = new THREE.Color(0x10151c); this.bgMat.needsUpdate = true;
     } else if (kind === "photo" && imageUrl) {
       const loader = new THREE.TextureLoader();
       loader.load(imageUrl, tex => {
         tex.colorSpace = THREE.SRGBColorSpace;
+        // wrap the photo around the dome so it becomes a 3D space
+        this.domeMat.map = tex; this.domeMat.color.set(0xffffff); this.domeMat.needsUpdate = true;
+        this.dome.visible = true;
+        // flat backdrop also carries the photo (for the straight-on frame)
         if (this.bgMat.map) this.bgMat.map.dispose();
         this.bgMat.map = tex; this.bgMat.color.set(0xffffff); this.bgMat.needsUpdate = true;
-        this.scene.background = tex;
+        this.scene.background = null; // dome provides the surround
         this._analysePhoto(imageUrl);
       });
     }
@@ -482,6 +496,10 @@ export class Studio {
       const mix = 0.55;
       const cr = (r / 255) * mix + (1 - mix), cg = (g / 255) * mix + (1 - mix), cb = (b / 255) * mix + (1 - mix);
       this.ambient.color.setRGB(cr, cg, cb);
+      // floor picks up a muted version of the photo colour so the model sits in the space
+      this.floorMat.color.setRGB((r / 255) * 0.4 + 0.08, (g / 255) * 0.4 + 0.08, (b / 255) * 0.4 + 0.08);
+      // dim the dome a touch so it reads as environment, not a glowing screen
+      if (this.domeMat) { this.domeMat.color.setScalar(0.82); this.domeMat.needsUpdate = true; }
       this.lastPhotoEnv = { ambient: Math.round(amb * 100), tint: [Math.round(r), Math.round(g), Math.round(b)] };
       this._fire();
     };

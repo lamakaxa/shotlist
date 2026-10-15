@@ -189,6 +189,7 @@ function enterStudio(briefIdx) {
   // seed a key softbox so the studio isn't empty
   studio.addLight("softbox");
   el("s_brief").textContent = brief.title;
+  el("s_back").textContent = "‹ " + STR.backToBoard;
   el("briefchip").innerHTML = `<div class="t">${STR.brief}</div>${brief.teaches}`;
   el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${brief.shots}`;
   el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
@@ -210,6 +211,7 @@ function enterFreeStudio() {
   studio.setView("free");
   setActiveViewTab("free");
   el("s_brief").textContent = STR.studioFree;
+  el("s_back").textContent = "‹ Меню";
   el("briefchip").innerHTML = `<div class="t">${STR.studioFree}</div>Экспериментируй со светом свободно.`;
   el("shootInfo").textContent = STR.studioFree;
   el("shootBtn").textContent = "📸 " + STR.capture;
@@ -287,6 +289,7 @@ function syncStudioUI() {
   // model
   el("btV").textContent = Math.round(S.man.bodyTurnDeg) + "°";
   el("htV").textContent = Math.round(S.man.headTurnDeg) + "°";
+  el("mscale").value = Math.round(S.modelScaleV * 100); el("mscaleV").textContent = Math.round(S.modelScaleV * 100) + "%";
   // live match (career)
   if (session) {
     const r = S.scoreAgainst(session.brief.target, session.brief.weights);
@@ -364,6 +367,7 @@ function bindStudioControls() {
   });
   el("bodyTurn").addEventListener("input", e => studio.bodyTurn(+e.target.value));
   el("headTurn").addEventListener("input", e => studio.headTurn(+e.target.value));
+  el("mscale").addEventListener("input", e => { studio.setModelScale(+e.target.value / 100); el("mscaleV").textContent = e.target.value + "%"; });
   // views
   el("vtabs").addEventListener("click", e => {
     const r = e.target.closest("[data-reset]");
@@ -372,7 +376,11 @@ function bindStudioControls() {
     setActiveViewTab(b.dataset.view); studio.setView(b.dataset.view); updateVTag();
   });
   // back
-  el("s_back").addEventListener("click", () => { closeSheet(); el("hintBtn").classList.remove("hidden"); show("board"); renderBoard(); });
+  el("s_back").addEventListener("click", () => {
+    closeSheet(); el("hintBtn").classList.remove("hidden");
+    if (state.freeMode) { show("menu"); }
+    else { show("board"); renderBoard(); }
+  });
   // shoot + hint
   el("shootBtn").addEventListener("click", onShoot);
   el("hintBtn").addEventListener("click", onHint);
