@@ -136,6 +136,9 @@ function enterStudio(briefIdx) {
   el("briefchip").innerHTML = `<div class="t">${STR.brief}</div>${brief.teaches}`;
   el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${brief.shots}`;
   el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
+  if(el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
+  el("mHint").style.display = "";
+  if (typeof closeSheet === "function") closeSheet();
   el("vhint").innerHTML = STR.dragLimb + " · <b>тяни источник · колесо — высота в виде «Сверху»</b>";
   show("studio");
   syncStudioUI();
@@ -154,7 +157,10 @@ function enterFreeStudio() {
   el("briefchip").innerHTML = `<div class="t">${STR.studioFree}</div>Экспериментируй со светом свободно.`;
   el("shootInfo").textContent = STR.studioFree;
   el("shootBtn").textContent = "📸 " + STR.capture;
+  el("mShootL").textContent = STR.capture;
+  el("mHint").style.display = "none";
   el("hintBtn").classList.add("hidden");
+  if (typeof closeSheet === "function") closeSheet();
   show("studio");
   syncStudioUI();
 }
@@ -248,10 +254,38 @@ function bindStudioControls() {
   // views
   el("vtabs").addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (!b) return; setActiveViewTab(b.dataset.view); studio.setView(b.dataset.view); updateVTag(); });
   // back
-  el("s_back").addEventListener("click", () => { el("hintBtn").classList.remove("hidden"); show("board"); renderBoard(); });
+  el("s_back").addEventListener("click", () => { closeSheet(); el("hintBtn").classList.remove("hidden"); show("board"); renderBoard(); });
   // shoot + hint
   el("shootBtn").addEventListener("click", onShoot);
   el("hintBtn").addEventListener("click", onHint);
+  // mobile bottom-sheet nav
+  bindMobileNav();
+}
+
+let openSheet = null;
+function closeSheet() {
+  if (!openSheet) return;
+  document.querySelector(".panel." + openSheet)?.classList.remove("open");
+  el("sheetBackdrop").classList.remove("show");
+  el("mnav").querySelectorAll("[data-sheet]").forEach(b => b.classList.remove("on"));
+  openSheet = null;
+}
+function toggleSheet(which) {
+  if (openSheet === which) { closeSheet(); return; }
+  closeSheet();
+  const panel = document.querySelector(".panel." + which);
+  if (!panel) return;
+  panel.classList.add("open");
+  el("sheetBackdrop").classList.add("show");
+  el("mnav").querySelector(`[data-sheet="${which}"]`)?.classList.add("on");
+  openSheet = which;
+}
+function bindMobileNav() {
+  el("mnav").querySelectorAll("[data-sheet]").forEach(b =>
+    b.addEventListener("click", () => toggleSheet(b.dataset.sheet)));
+  el("sheetBackdrop").addEventListener("click", closeSheet);
+  el("mShoot").addEventListener("click", () => { closeSheet(); onShoot(); });
+  el("mHint").addEventListener("click", () => { onHint(); });
 }
 
 function setActiveViewTab(v) { el("vtabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.view === v)); updateVTag(); }
@@ -308,6 +342,7 @@ function onShoot() {
   session.shotsLeft--;
   el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${session.brief.shots}`;
   el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
+  if(el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
   flashShutter();
   if (session.shotsLeft <= 0) setTimeout(showReview, 380);
 }
@@ -360,6 +395,7 @@ function showReview() {
     closeModal(); session.shotsLeft = session.brief.shots; session.shots = [];
     el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${session.brief.shots}`;
     el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
+  if(el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
   });
   if (pass) el("modalMount").querySelector("[data-submit]").addEventListener("click", () => finishBrief(bestScore));
 }
@@ -392,6 +428,7 @@ function finishBrief(score) {
 
 /* ---------------- modal helper ---------------- */
 function showModal(html) {
+  if (typeof closeSheet === "function") closeSheet();
   el("modalMount").innerHTML = `<div class="modal"><div class="sheet scr">${html}</div></div>`;
   const c = el("modalMount").querySelector("[data-close]");
   if (c) c.addEventListener("click", closeModal);

@@ -2,12 +2,15 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>SHOTLIST</title>
 <style>
 :root{
   --ink:#10100f;--panel:#17171a;--panel2:#1f1f23;--line:#2c2c31;
   --haze:#8d8a82;--paper:#e9e4d8;--amber:#e8a13a;--cool:#6fa8d6;--burg:#7a2018;--hot:#ff5d4d;
+  --ease-out:cubic-bezier(0.23,1,0.32,1);
+  --ease-drawer:cubic-bezier(0.32,0.72,0,1);
+  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--ink);color:var(--paper);overflow:hidden;
@@ -20,8 +23,10 @@ button{font-family:inherit;cursor:pointer}
 /* ---------- shared ---------- */
 .eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--haze);font-weight:700}
 .btn{background:var(--panel2);border:1px solid var(--line);color:var(--paper);
-  padding:11px 18px;border-radius:9px;font-size:14px;transition:.14s;letter-spacing:.01em}
-.btn:hover{border-color:var(--amber);color:var(--amber)}
+  padding:11px 18px;border-radius:9px;font-size:14px;letter-spacing:.01em;
+  transition:transform .14s var(--ease-out),border-color .14s,color .14s}
+@media(hover:hover){.btn:hover{border-color:var(--amber);color:var(--amber)}}
+.btn:active{transform:scale(.97)}
 .btn.primary{background:var(--amber);color:#1a1206;border-color:var(--amber);font-weight:700}
 .btn.primary:hover{filter:brightness(1.08);color:#1a1206}
 .btn.ghost:hover{border-color:var(--cool);color:var(--cool)}
@@ -82,8 +87,10 @@ button{font-family:inherit;cursor:pointer}
 .sect h2::before{content:"";width:9px;height:1px;background:var(--amber)}
 .addrow{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .add{background:var(--panel2);border:1px solid var(--line);color:var(--paper);font-size:11px;
-  padding:9px 5px;border-radius:7px;text-align:center;transition:.13s;line-height:1.25}
-.add:hover{border-color:var(--amber)}
+  padding:9px 5px;border-radius:7px;text-align:center;line-height:1.25;
+  transition:transform .12s var(--ease-out),border-color .12s}
+@media(hover:hover){.add:hover{border-color:var(--amber)}}
+.add:active{transform:scale(.96)}
 .add .ic{display:block;font-size:15px;margin-bottom:3px}
 .lt{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
   margin-bottom:7px;position:relative;transition:.12s}
@@ -99,11 +106,18 @@ button{font-family:inherit;cursor:pointer}
 .ctrl{margin-bottom:11px}
 .ctrl label{font-size:11px;color:var(--haze);display:flex;justify-content:space-between;margin-bottom:5px}
 .ctrl label b{color:var(--paper);font-weight:600;font-variant-numeric:tabular-nums}
-input[type=range]{-webkit-appearance:none;width:100%;height:3px;border-radius:3px;background:var(--line);outline:none}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
-  background:var(--paper);cursor:pointer;border:2px solid var(--panel)}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:3px;background:var(--line);outline:none;touch-action:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:var(--paper);cursor:pointer;border:2px solid var(--panel);transition:transform .12s var(--ease-out)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
 input[type=range].am::-webkit-slider-thumb{background:var(--amber)}
-input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:var(--paper)}
+input[type=range]::-moz-range-thumb{width:17px;height:17px;border:none;border-radius:50%;background:var(--paper)}
+@media(max-width:900px){
+  input[type=range]{height:6px}
+  input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
+  input[type=range]::-moz-range-thumb{width:24px;height:24px}
+  .ctrl{margin-bottom:18px}
+}
 .seg{display:flex;gap:5px;flex-wrap:wrap}
 .seg button{flex:1;min-width:50px;background:var(--panel2);border:1px solid var(--line);color:var(--haze);
   font-size:10.5px;padding:7px 4px;border-radius:6px;transition:.12s;white-space:nowrap}
@@ -171,14 +185,57 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
 .reward .v{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
 .reward .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--haze);margin-top:3px}
 
-/* mobile */
+/* mobile bottom-sheet tab bar */
+#mnav{display:none}
+#sheetBackdrop{display:none}
 @media(max-width:900px){
-  #studioGrid{grid-template-columns:1fr;grid-template-rows:auto minmax(38vh,1fr) auto}
-  .panel.l{order:2;border:none;border-top:1px solid var(--line);max-height:30vh}
-  #stage{order:1}
-  .panel.r{order:3;border:none;border-top:1px solid var(--line);max-height:34vh}
+  /* 3D fills the screen; panels become a sheet */
+  #studioGrid{display:block;position:relative;flex:1;min-height:0}
+  #stage{position:absolute;inset:0}
+  .panel.l,.panel.r{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:var(--panel);border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;max-height:62dvh;
+    padding-bottom:calc(10px + var(--sab));
+    transform:translateY(110%);transition:transform .34s var(--ease-drawer);
+    box-shadow:0 -12px 40px rgba(0,0,0,.5);overscroll-behavior:contain}
+  .panel.l.open,.panel.r.open{transform:translateY(0)}
+  /* grab handle */
+  .panel.l::before,.panel.r::before{content:"";display:block;width:38px;height:4px;
+    border-radius:4px;background:var(--line);margin:9px auto 2px}
+  #sheetBackdrop.show{display:block;position:fixed;inset:0;z-index:35;
+    background:rgba(8,8,7,.4);backdrop-filter:blur(1px)}
   .vhint{display:none}
+  .briefchip{bottom:74px;max-width:52vw;font-size:10.5px}
+  .vtabs{top:calc(10px + var(--sat))}
+  .vtag{top:calc(10px + var(--sat))}
+  /* studio top bar compact */
+  #studio .bar{padding:calc(8px + var(--sat)) 14px 8px}
+  #s_brief{font-size:13px;max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* hide the old desktop shoot bar; mobile uses the nav */
+  #studio .shootbar{display:none}
+  /* bottom tab nav */
+  #mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;
+    background:var(--panel);border-top:1px solid var(--line);
+    padding:7px 8px calc(7px + var(--sab));gap:6px;align-items:stretch}
+  #mnav button{flex:1;background:transparent;border:none;color:var(--haze);
+    font-size:10px;letter-spacing:.02em;padding:6px 2px;border-radius:10px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    transition:transform .12s var(--ease-out),color .12s,background .12s}
+  #mnav button .ic{font-size:19px;line-height:1}
+  #mnav button.on{color:var(--amber);background:#1c1710}
+  #mnav button:active{transform:scale(.94)}
+  #mnav .shoot{color:#1a1206;background:var(--amber);font-weight:700}
+  #mnav .shoot.on{color:#1a1206}
+  /* roomier controls inside sheet */
+  .panel.l .sect,.panel.r .sect{padding:14px 16px}
+  .add{padding:13px 6px;font-size:12px}
+  .seg button{padding:11px 6px;font-size:12px}
+  .lt{padding:11px 13px}
+  .lt .del{font-size:16px;padding:4px;opacity:.7}
 }
+/* larger tap targets for light shelf everywhere */
+.add{min-height:52px}
 .scr::-webkit-scrollbar{width:7px}
 .scr::-webkit-scrollbar-thumb{background:var(--line);border-radius:7px}
 </style>
@@ -285,6 +342,14 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:none;border-ra
     <button class="btn ghost" id="hintBtn"></button>
     <button class="btn primary" id="shootBtn"></button>
   </div>
+  <!-- mobile backdrop + tab nav -->
+  <div id="sheetBackdrop"></div>
+  <nav id="mnav">
+    <button data-sheet="l"><span class="ic">◗</span><span>Свет</span></button>
+    <button data-sheet="r"><span class="ic">◎</span><span>Камера</span></button>
+    <button id="mHint"><span class="ic">💡</span><span id="mHintL">Подсказка</span></button>
+    <button class="shoot" id="mShoot"><span class="ic">◉</span><span id="mShootL">Кадр</span></button>
+  </nav>
 </div>
 
 <!-- review modal mount -->
