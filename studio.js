@@ -124,7 +124,8 @@ export class Studio {
     const tgt = new THREE.Vector3(0, 1.4 + L.tilt * 0.012, 0);
     L.sl.target.position.copy(tgt);
     L.giz.lookAt(tgt);
-    const col = kelvinToRGB(L.kelvin);
+    // colour: HSL override when set, otherwise from kelvin
+    const col = L.hsl ? new THREE.Color().setHSL(L.hsl[0] / 360, L.hsl[1] / 100, L.hsl[2] / 100) : kelvinToRGB(L.kelvin);
     L.sl.color.copy(col);
     L.sl.intensity = (L.pw / 100) * 6.5;
     L.sl.angle = THREE.MathUtils.degToRad(L.cone / 2);
@@ -148,6 +149,69 @@ export class Studio {
   setProp(prop, val) {
     const L = this.cur(); if (!L) return;
     L[prop] = +val; this._place(L); this._fire();
+  }
+
+  // ---- light world-position by axis (metres) ----
+  lightPos(L) {
+    L = L || this.cur(); if (!L) return { x: 0, y: 0, z: 0 };
+    const ar = THREE.MathUtils.degToRad(L.a);
+    return { x: Math.sin(ar) * L.r, y: L.h / 100, z: Math.cos(ar) * L.r };
+  }
+  setLightAxis(axis, val) {
+    const L = this.cur(); if (!L) return;
+    const p = this.lightPos(L);
+    p[axis] = +val;
+    const r = Math.max(0.3, Math.min(6, Math.hypot(p.x, p.z)));
+    L.r = r;
+    L.a = THREE.MathUtils.radToDeg(Math.atan2(p.x, p.z));
+    L.h = Math.max(5, Math.min(360, p.y * 100));
+    this._place(L); this._fire();
+  }
+  // ---- light colour (HSL) ----
+  lightHSL(L) {
+    L = L || this.cur(); if (!L) return [40, 0, 50];
+    if (L.hsl) return L.hsl.slice();
+    const c = (function kelv(k){k/=100;let r,g,b;if(k<=66){r=255;g=99.47*Math.log(k)-161.12;}else{r=329.7*Math.pow(k-60,-0.1332);g=288.12*Math.pow(k-60,-0.0755);}if(k>=66)b=255;else if(k<=19)b=0;else b=138.5*Math.log(k-10)-305.04;const cl=v=>Math.min(255,Math.max(0,v))/255;return new THREE.Color(cl(r),cl(g),cl(b));})(L.kelvin);
+    const hsl = {}; c.getHSL(hsl);
+    return [Math.round(hsl.h * 360), Math.round(hsl.s * 100), Math.round(hsl.l * 100)];
+  }
+  setLightHSL(h, s, l) {
+    const L = this.cur(); if (!L) return;
+    L.hsl = [h, s, l]; this._place(L); this._fire();
+  }
+  clearLightHSL() { const L = this.cur(); if (!L) return; L.hsl = null; this._place(L); this._fire(); }
+  lightRGB(L) {
+    const hsl = this.lightHSL(L);
+    const c = new THREE.Color().setHSL(hsl[0] / 360, hsl[1] / 100, hsl[2] / 100);
+    return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)];
+  }
+  setLightRGB(r, g, b) {
+    const L = this.cur(); if (!L) return;
+    const c = new THREE.Color(r / 255, g / 255, b / 255);
+    const hsl = {}; c.getHSL(hsl);
+    L.hsl = [Math.round(hsl.h * 360), Math.round(hsl.s * 100), Math.round(hsl.l * 100)];
+    this._place(L); this._fire();
+  }
+
+  // ---- camera world-position by axis (active perspective camera) ----
+  camPos() {
+    const c = this.viewMode === "cam" ? this.camShot : this.camFree;
+    return { x: c.position.x, y: c.position.y, z: c.position.z };
+  }
+  setCamAxis(axis, val) {
+    const useCam = this.viewMode === "cam";
+    const c = useCam ? this.camShot : this.camFree;
+    const tgt = useCam ? this.shotTarget : this.camTarget;
+    const p = { x: c.position.x, y: c.position.y, z: c.position.z };
+    p[axis] = +val;
+    // recompute spherical angles so orbit stays consistent
+    const dx = p.x - tgt.x, dy = p.y - tgt.y, dz = p.z - tgt.z;
+    const rad = Math.max(1.2, Math.hypot(dx, dy, dz));
+    const pol = Math.acos(Math.max(-1, Math.min(1, dy / rad)));
+    const az = Math.atan2(dx, dz);
+    if (useCam) { this.shotRad = rad; this.shotPol = pol; this.shotAz = az; this._applyShotCam(); }
+    else { this.camRad = rad; this.camPol = pol; this.camAz = az; this._applyFreeCam(); }
+    this._fire();
   }
 
   // ---- camera exposure model ----

@@ -197,7 +197,27 @@ function syncStudioUI() {
     el("cone").value = L.cone; el("coneV").textContent = L.cone + "°";
     el("hgt").value = L.h; el("hV").textContent = Math.round(L.h) + " см";
     el("tilt").value = L.tilt; el("tiltV").textContent = L.tilt === 0 ? "авто" : (L.tilt > 0 ? "+" : "") + L.tilt + "°";
+    // light axes
+    const lp = S.lightPos(L);
+    el("lx").value = lp.x; el("lxV").textContent = lp.x.toFixed(2);
+    el("ly").value = lp.y; el("lyV").textContent = lp.y.toFixed(2);
+    el("lz").value = lp.z; el("lzV").textContent = lp.z.toFixed(2);
+    // light colour
+    const custom = !!L.hsl;
+    el("lcustom").checked = custom;
+    el("colBody").classList.toggle("hidden", !custom);
+    const hsl = S.lightHSL(L), rgb = S.lightRGB(L);
+    el("lh").value = hsl[0]; el("lhV").textContent = hsl[0];
+    el("ls").value = hsl[1]; el("lsV").textContent = hsl[1];
+    el("ll").value = hsl[2]; el("llV").textContent = hsl[2];
+    el("lr").value = rgb[0]; el("lg").value = rgb[1]; el("lb").value = rgb[2];
+    el("lswatch").style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   }
+  // camera axes
+  const cp = S.camPos();
+  el("cx").value = cp.x; el("cxV").textContent = cp.x.toFixed(1);
+  el("cy").value = cp.y; el("cyV").textContent = cp.y.toFixed(1);
+  el("cz").value = cp.z; el("czV").textContent = cp.z.toFixed(1);
   // camera readouts
   el("isoV").textContent = S.cam.iso;
   el("shV").textContent = "1/" + S.cam.shutter;
@@ -243,6 +263,24 @@ function bindStudioControls() {
   el("shutter").addEventListener("input", e => studio.setCam("shutter", e.target.value));
   el("aperture").addEventListener("input", e => studio.setCam("aperture", +e.target.value / 10));
   el("focal").addEventListener("input", e => studio.setCam("focal", e.target.value));
+  // light position by axis
+  el("lx").addEventListener("input", e => studio.setLightAxis("x", e.target.value));
+  el("ly").addEventListener("input", e => studio.setLightAxis("y", e.target.value));
+  el("lz").addEventListener("input", e => studio.setLightAxis("z", e.target.value));
+  // light colour
+  el("lcustom").addEventListener("change", e => {
+    if (e.target.checked) { const h = studio.lightHSL(); studio.setLightHSL(h[0], h[1], h[2]); }
+    else studio.clearLightHSL();
+    syncStudioUI();
+  });
+  const hslIn = () => studio.setLightHSL(+el("lh").value, +el("ls").value, +el("ll").value);
+  ["lh", "ls", "ll"].forEach(id => el(id).addEventListener("input", () => { el("lcustom").checked = true; hslIn(); }));
+  const rgbIn = () => studio.setLightRGB(+el("lr").value, +el("lg").value, +el("lb").value);
+  ["lr", "lg", "lb"].forEach(id => el(id).addEventListener("input", () => { el("lcustom").checked = true; rgbIn(); }));
+  // camera position by axis
+  el("cx").addEventListener("input", e => studio.setCamAxis("x", e.target.value));
+  el("cy").addEventListener("input", e => studio.setCamAxis("y", e.target.value));
+  el("cz").addEventListener("input", e => studio.setCamAxis("z", e.target.value));
   // pose
   el("poseSeg").addEventListener("click", e => {
     const b = e.target.closest("[data-pose]"); if (!b) return;
@@ -336,24 +374,73 @@ function bindViewport() {
 }
 
 /* ---------------- shooting a roll ---------------- */
+function saveImage(url, name) {
+  const a = document.createElement("a"); a.href = url; a.download = name || "shotlist-frame.jpg"; a.click();
+}
+
 function onShoot() {
   if (!studio) return;
+  flashShutter();
   if (state.freeMode) {
-    // free mode: just download the frame
     const url = studio.capture();
-    const a = document.createElement("a"); a.href = url; a.download = "shotlist-frame.jpg"; a.click();
+    showShotResult({ url, free: true });
     return;
   }
   if (!session || session.shotsLeft <= 0) return;
   const r = studio.scoreAgainst(session.brief.target, session.brief.weights);
   const url = studio.capture();
-  session.shots.push({ url, score: r.score, hint: r.hint });
+  const shot = { url, score: r.score, hint: r.hint };
+  session.shots.push(shot);
   session.shotsLeft--;
   el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${session.brief.shots}`;
   el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
-  if(el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
-  flashShutter();
-  if (session.shotsLeft <= 0) setTimeout(showReview, 380);
+  if (el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
+  setTimeout(() => showShotResult({ shot }), 180);
+}
+
+// show the just-taken frame with Save / Submit options
+function showShotResult({ url, shot, free }) {
+  if (free) {
+    showModal(`
+      <h2>Кадр готов</h2>
+      <div class="sub">${STR.studioFree}</div>
+      <div class="shotbig"><img src="${url}"></div>
+      <div class="acts">
+        <button class="btn" data-close>${STR.close}</button>
+        <button class="btn primary" data-save>⤓ ${STR.save || "Сохранить"}</button>
+      </div>`);
+    el("modalMount").querySelector("[data-save]").addEventListener("click", () => saveImage(url, "shotlist-frame.jpg"));
+    return;
+  }
+  const pass = shot.score >= session.brief.threshold;
+  const left = session.shotsLeft;
+  showModal(`
+    <h2>Кадр ${session.brief.shots - left}/${session.brief.shots}</h2>
+    <div class="sub">${session.brief.title}</div>
+    <div class="shotbig"><img src="${shot.url}"><span class="shotpct ${pass ? 'ok' : ''}">${Math.round(shot.score * 100)}%</span></div>
+    <div class="fbk">${hintText(shot.hint)}</div>
+    <div class="acts">
+      <button class="btn" data-save>⤓ ${STR.save || "Сохранить"}</button>
+      ${left > 0 ? `<button class="btn ghost" data-more>📸 Ещё кадр (${left})</button>` : ""}
+      <button class="btn ${pass ? 'primary' : ''}" data-submit ${pass ? '' : 'disabled'}>✓ ${STR.submit}</button>
+    </div>
+    ${!pass ? `<div class="tiny" style="margin-top:9px;color:var(--haze)">Порог сдачи ${Math.round(session.brief.threshold * 100)}% — дотяни свет и сними ещё.</div>` : ""}`);
+  const mm = el("modalMount");
+  mm.querySelector("[data-save]").addEventListener("click", () => saveImage(shot.url, "shotlist-shot.jpg"));
+  const more = mm.querySelector("[data-more]");
+  if (more) more.addEventListener("click", closeModal);
+  const sub = mm.querySelector("[data-submit]");
+  if (pass) sub.addEventListener("click", () => { closeModal(); finishBrief(shot.score); });
+  // if no shots left and not passing, offer reshoot
+  if (left <= 0 && !pass) {
+    sub.insertAdjacentHTML("afterend", `<button class="btn" data-reshoot>${STR.reshoot}</button>`);
+    mm.querySelector("[data-reshoot]").addEventListener("click", () => {
+      closeModal(); session.shotsLeft = session.brief.shots; session.shots = [];
+      el("shootInfo").innerHTML = `${STR.shotsLeft}: <b>${session.shotsLeft}</b> / ${session.brief.shots}`;
+      el("shootBtn").textContent = STR.capture + " (" + session.shotsLeft + ")";
+      if (el("mShootL")) el("mShootL").textContent = STR.capture + " " + session.shotsLeft;
+    });
+  }
 }
 
 function flashShutter() {
